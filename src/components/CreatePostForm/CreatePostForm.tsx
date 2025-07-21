@@ -1,11 +1,51 @@
 import * as Yup from "yup";
 import { Field, Form, Formik, FormikHelpers, ErrorMessage } from "formik";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import css from "./CreatePostForm.module.css";
+import { createPost } from "../../services/postService";
 
-export default function PostForm() {
+const postSchema = Yup.object().shape({
+  title: Yup.string()
+    .min(3, "Title must be at least 3 characters")
+    .max(30, "Title must be at most 30 characters")
+    .required("Title is required"),
+  body: Yup.string()
+    .max(500, "Content must be at most 500 characters")
+    .required("Content is required"),
+});
+
+interface PostFormProps {
+  onClose: () => void;
+}
+
+interface FormValues {
+  title: string;
+  body: string;
+}
+
+const initialValues: FormValues = { title: "", body: "" };
+
+export default function CreatePostForm({ onClose }: PostFormProps) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: createPost,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      alert("Post created!");
+      onClose();
+    },
+  });
+
+  const handleSubmit = (values: FormValues, actions: FormikHelpers<FormValues>) => {
+    mutation.mutate(values, {
+      onSettled: () => actions.setSubmitting(false),
+    });
+    actions.resetForm();
+  };
+
   return (
-    <Formik initialValues={} onSubmit={} validationSchema={}>
+    <Formik initialValues={initialValues} onSubmit={handleSubmit} validationSchema={postSchema}>
       <Form className={css.form}>
         <div className={css.formGroup}>
           <label htmlFor="title">Title</label>
@@ -15,15 +55,17 @@ export default function PostForm() {
 
         <div className={css.formGroup}>
           <label htmlFor="body">Content</label>
-          <Field id="body" as="textarea" name="body" rows="8" className={css.textarea} />
+          <Field id="body" as="textarea" name="body" rows={8} className={css.textarea} />
           <ErrorMessage name="body" component="span" className={css.error} />
         </div>
 
+        {mutation.isError && <div className={css.error}>Failed to create post</div>}
+
         <div className={css.actions}>
-          <button type="button" className={css.cancelButton}>
+          <button type="button" className={css.cancelButton} onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className={css.submitButton} disabled={}>
+          <button type="submit" className={css.submitButton} disabled={mutation.isPending}>
             Create post
           </button>
         </div>
